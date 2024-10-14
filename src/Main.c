@@ -24,6 +24,9 @@ int main() {
     char* conversation_id = generate_conversation_id();
     
     start_new_conversation(conversation_id);
+
+    printf("Historique de la conversation %s:\n", conversation_id);
+    load_conversation_history(conversation_id);
     
     printf("Bienvenue dans Oracle. Que puis-je faire pour vous ?\n");
     

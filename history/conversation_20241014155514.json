@@ -1,0 +1,1 @@
+{ "conversation_id": "20241014155514", "messages": [ { "role": "user", "message": "hello" }, { "role": "oracle", "message": "Hello! How can I assist you today?" }, { "role": "user", "message": "who are you " }, { "role": "oracle", "message": "I am a language model AI created by OpenAI. I am here to assist and answer any questions you may have." } ] }

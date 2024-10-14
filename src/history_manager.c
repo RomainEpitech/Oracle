@@ -82,3 +82,54 @@ void save_message(const char *role, const char *message, const char *conversatio
 
     json_object_put(root_obj);
 }
+
+void load_conversation_history(const char *conversation_id) {
+    char filename[256];
+    snprintf(filename, sizeof(filename), "history/conversation_%s.json", conversation_id);
+    
+    FILE *file = fopen(filename, "r");
+    if (!file) {
+        printf("Aucun historique trouvé pour la conversation %s.\n", conversation_id);
+        return;
+    }
+
+    fseek(file, 0, SEEK_END);
+    long length = ftell(file);
+    fseek(file, 0, SEEK_SET);
+    char *data = malloc(length + 1);
+    fread(data, 1, length, file);
+    data[length] = '\0';
+    fclose(file);
+
+    json_object *root_obj = json_tokener_parse(data);
+    free(data);
+
+    if (root_obj == NULL) {
+        perror("Erreur lors du parsing de l'historique");
+        return;
+    }
+
+    json_object *messages_array;
+    if (json_object_object_get_ex(root_obj, "messages", &messages_array) &&
+        json_object_get_type(messages_array) == json_type_array) {
+        
+        size_t num_messages = json_object_array_length(messages_array);
+        for (size_t i = 0; i < num_messages; i++) {
+            json_object *message_obj = json_object_array_get_idx(messages_array, i);
+            json_object *role_obj, *message_text_obj;
+
+            if (json_object_object_get_ex(message_obj, "role", &role_obj) &&
+                json_object_object_get_ex(message_obj, "message", &message_text_obj)) {
+                
+                const char *role = json_object_get_string(role_obj);
+                const char *message = json_object_get_string(message_text_obj);
+
+                printf("%s: %s\n", role, message);
+            }
+        }
+    } else {
+        printf("Pas de messages trouvés dans l'historique.\n");
+    }
+
+    json_object_put(root_obj);
+}
