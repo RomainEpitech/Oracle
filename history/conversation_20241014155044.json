@@ -1,0 +1,1 @@
+{ "conversation_id": "20241014155044", "messages": [ { "role": "user", "message": "hello" }, { "role": "oracle", "message": "Hello! How can I assist you today?" }, { "role": "user", "message": "who are you ?" }, { "role": "oracle", "message": "I am an AI digital assistant here to assist you with any questions or tasks you have. How can I help you today?" } ] }
