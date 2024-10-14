@@ -1,1 +1,3 @@
 # Oracle
+
+Oracle is a llm meant to help Horizon based project. More documentation comming...
