@@ -20,7 +20,7 @@ int main() {
         if (fgets(input, ORACLE_MAX_INPUT, stdin) == NULL) {
             break;
         }
-        input[strcspn(input, "\n")] = 0;  // Supprime le retour à la ligne
+        input[strcspn(input, "\n")] = 0;
         
         if (strcmp(input, "exit") == 0) {
             break;

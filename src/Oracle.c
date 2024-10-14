@@ -64,7 +64,6 @@ char* chat_with_gpt(const char* input) {
         snprintf(auth_header, sizeof(auth_header), "Authorization: Bearer %s", get_api_key());
         headers = curl_slist_append(headers, auth_header);
 
-        // Préparez le corps de la requête JSON
         char request_body[1024];
         snprintf(request_body, sizeof(request_body),
                     "{\"model\": \"gpt-3.5-turbo\", \"messages\": [{\"role\": \"user\", \"content\": \"%s\"}]}",
