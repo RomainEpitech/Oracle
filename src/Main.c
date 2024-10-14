@@ -19,15 +19,12 @@ char* generate_conversation_id() {
 int main() {
     curl_global_init(CURL_GLOBAL_DEFAULT);
     load_env_variables();
+    load_markdown_docs();
     
     char input[ORACLE_MAX_INPUT];
     char* conversation_id = generate_conversation_id();
     
     start_new_conversation(conversation_id);
-
-    printf("Historique de la conversation %s:\n", conversation_id);
-    load_conversation_history(conversation_id);
-    
     printf("Bienvenue dans Oracle. Que puis-je faire pour vous ?\n");
     
     while (1) {
@@ -52,5 +49,12 @@ int main() {
     printf("Merci d'avoir utilisé Oracle. Au revoir !\n");
     
     curl_global_cleanup();
+    
+    for (int i = 0; i < num_docs; i++) {
+        free(docs[i].filename);
+        free(docs[i].content);
+    }
+    free(docs);
+
     return 0;
 }

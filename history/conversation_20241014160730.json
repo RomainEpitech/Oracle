@@ -1,0 +1,1 @@
+{ "conversation_id": "20241014160730", "messages": [ { "role": "user", "message": "test" }, { "role": "oracle", "message": "Je ne peux pas accéder à la documentation." } ] }

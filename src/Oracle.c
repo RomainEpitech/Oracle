@@ -1,9 +1,13 @@
-#include "../includes/oracle.h"
+#include "../includes/Oracle.h"
 #include <stdlib.h>
+#include <dirent.h>
 #include <string.h>
 
 static const char* api_key = NULL;
 #define API_URL "https://api.openai.com/v1/chat/completions"
+
+MarkdownFile *docs = NULL;
+int num_docs = 0;     
 
 void load_env_variables(void) {
     if (load_env(".env") != 0) {
@@ -17,6 +21,82 @@ void load_env_variables(void) {
     }
 }
 
+void load_markdown_docs() {
+    struct dirent *entry;
+    DIR *dp = opendir("./includes/docs/");
+    if (dp == NULL) {
+        perror("Impossible d'ouvrir le dossier docs");
+        return;
+    }
+
+    while ((entry = readdir(dp))) {
+        if (entry->d_type == DT_REG) {
+            char filepath[256];
+            snprintf(filepath, sizeof(filepath), "./includes/docs/%s", entry->d_name);
+            char *content = read_markdown_file(filepath);
+
+            if (content) {
+                docs = realloc(docs, sizeof(MarkdownFile) * (num_docs + 1));
+                docs[num_docs].filename = strdup(entry->d_name);
+                docs[num_docs].content = content;
+                num_docs++;
+            }
+        }
+    }
+    closedir(dp);
+}
+
+char* read_markdown_file(const char* filepath) {
+    FILE *file = fopen(filepath, "r");
+    if (!file) {
+        perror("Impossible de lire le fichier");
+        return NULL;
+    }
+
+    fseek(file, 0, SEEK_END);
+    long length = ftell(file);
+    fseek(file, 0, SEEK_SET);
+
+    char *content = malloc(length + 1);
+    if (content) {
+        fread(content, 1, length, file);
+        content[length] = '\0';
+    }
+    fclose(file);
+
+    return content;
+}
+
+char* search_in_markdown(const char* content, const char* query) {
+    if (content == NULL || query == NULL) {
+        return NULL;
+    }
+
+    char *found = strcasestr(content, query);
+    
+    if (found) {
+        size_t context_length = 200;
+        size_t position = found - content;
+        size_t start = position > context_length ? (position - context_length) : 0;
+        
+        size_t content_length = strlen(content);
+        size_t end = (position + context_length) < content_length ? (position + context_length) : content_length;
+
+        char *result = strndup(content + start, end - start);
+
+        if (start > 0 || end < content_length) {
+            char *formatted_result = malloc(strlen(result) + 5);
+            snprintf(formatted_result, strlen(result) + 5, "%s%s", start > 0 ? "..." : "", result);
+            free(result);
+            return formatted_result;
+        }
+
+        return result;
+    }
+
+    return NULL;
+}
+
 const char* get_api_key(void) {
     if (!api_key) {
         load_env_variables();
@@ -25,8 +105,19 @@ const char* get_api_key(void) {
     return api_key;
 }
 
+#include <dirent.h>
+
 char* oracle_process(const char* input) {
-    return chat_with_gpt(input);
+    for (int i = 0; i < num_docs; i++) {
+        char *result = search_in_markdown(docs[i].content, input);
+        if (result) {
+            char *response = malloc(strlen(docs[i].filename) + strlen(result) + 50);
+            snprintf(response, strlen(docs[i].filename) + strlen(result) + 50, "Dans le fichier %s: %s", docs[i].filename, result);
+            free(result);
+            return response;
+        }
+    }
+    return strdup("Je n'ai trouvé aucune information pertinente dans la documentation.");
 }
 
 static size_t WriteMemoryCallback(void *contents, size_t size, size_t nmemb, void *userp) {
