@@ -21,6 +21,12 @@ typedef struct {
 } RelevantInfo;
 
 typedef struct {
+    char* title;
+    char* context;
+    char* code;
+} RelevantContent;
+
+typedef struct {
     char* thought;
     RelevantInfo* info;
     int info_count;
@@ -42,5 +48,9 @@ void free_reflection(Reflection* reflection);
 int levenshtein_distance(const char *s1, const char *s2);
 static int my_trace(CURL *handle, curl_infotype type, char *data, size_t size, void *userp);
 char* find_relevant_code(const char* query);
+RelevantContent extract_relevant_content(const char* markdown_content, const char* query);
+char* format_response(RelevantContent content);
+int contains_word(const char* str, const char* word);
+void to_lowercase(char *str);
 
 #endif

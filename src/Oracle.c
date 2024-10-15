@@ -23,6 +23,12 @@ void load_env_variables(void) {
     }
 }
 
+void to_lowercase(char *str) {
+    for (int i = 0; str[i]; i++) {
+        str[i] = tolower(str[i]);
+    }
+}
+
 Reflection* reflect_on_query(const char* query) {
     Reflection* reflection = malloc(sizeof(Reflection));
     reflection->thought = NULL;
@@ -72,6 +78,93 @@ char* formulate_response(Reflection* reflection) {
         reflection->thought);
 
     return chat_with_gpt(prompt);
+}
+
+int contains_word(const char* str, const char* word) {
+    char* str_copy = strdup(str);
+    char* word_copy = strdup(word);
+    to_lowercase(str_copy);
+    to_lowercase(word_copy);
+    
+    int result = strstr(str_copy, word_copy) != NULL;
+    
+    free(str_copy);
+    free(word_copy);
+    return result;
+}
+
+RelevantContent extract_relevant_content(const char* markdown_content, const char* query) {
+    RelevantContent result = {NULL, NULL, NULL};
+    char* content_copy = strdup(markdown_content);
+    char* query_copy = strdup(query);
+    to_lowercase(content_copy);
+    to_lowercase(query_copy);
+    
+    char* section_start = content_copy;
+    char* section_end;
+    char* best_section = NULL;
+    int best_score = 0;
+    
+    while ((section_end = strstr(section_start, "\n## ")) != NULL) {
+        *section_end = '\0';
+        int score = 0;
+        char* word = strtok(query_copy, " ");
+        while (word != NULL) {
+            if (contains_word(section_start, word)) {
+                score++;
+            }
+            word = strtok(NULL, " ");
+        }
+        if (score > best_score) {
+            best_score = score;
+            best_section = section_start;
+        }
+        section_start = section_end + 1;
+    }
+    
+    if (best_section) {
+        char* title_end = strchr(best_section, '\n');
+        if (title_end) {
+            result.title = strndup(best_section, title_end - best_section);
+            char* context_start = title_end + 1;
+            char* code_start = strstr(context_start, "```");
+            if (code_start) {
+                result.context = strndup(context_start, code_start - context_start);
+                code_start += 3;
+                char* code_end = strstr(code_start, "```");
+                if (code_end) {
+                    result.code = strndup(code_start, code_end - code_start);
+                }
+            } else {
+                result.context = strdup(context_start);
+            }
+        }
+    }
+    
+    free(content_copy);
+    free(query_copy);
+    return result;
+}
+
+char* format_response(RelevantContent content) {
+    if (!content.context && !content.code) {
+        return strdup("Désolé, je n'ai pas trouvé d'information pertinente dans la documentation pour répondre à votre question.");
+    }
+    
+    char* response = malloc(1024);
+    response[0] = '\0';
+
+    if (content.context) {
+        strcat(response, content.context);
+        strcat(response, "\n\n");
+    }
+    
+    if (content.code) {
+        strcat(response, "Voici un exemple de code pertinent :\n");
+        strcat(response, content.code);
+    }
+    
+    return response;
 }
 
 int levenshtein_distance(const char *s1, const char *s2) {
@@ -193,15 +286,13 @@ void free_reflection(Reflection* reflection) {
     free(reflection);
 }
 
-// Ajoutez ces nouvelles fonctions à Oracle.c
-
 char* extract_code_from_markdown(const char* content) {
     char* code_start = strstr(content, "```");
     if (code_start == NULL) {
         return NULL;
     }
     
-    code_start += 3;  // Passer les backticks
+    code_start += 3;
     char* code_end = strstr(code_start, "```");
     if (code_end == NULL) {
         return NULL;
@@ -237,15 +328,34 @@ char* find_relevant_code(const char* query) {
 }
 
 char* oracle_process(const char* input) {
-    char* relevant_code = find_relevant_code(input);
-    if (relevant_code != NULL) {
-        char* response = malloc(strlen(relevant_code) + 100);  // Espace pour le texte supplémentaire
-        sprintf(response, "Voici un exemple de code pertinent trouvé dans la documentation :\n\n```\n%s\n```", relevant_code);
-        free(relevant_code);
-        return response;
+    RelevantContent best_content = {NULL, NULL, NULL};
+    int best_score = 0;
+    
+    for (int i = 0; i < num_docs; i++) {
+        RelevantContent content = extract_relevant_content(docs[i].content, input);
+        int score = 0;
+        if (content.title) score++;
+        if (content.context) score++;
+        if (content.code) score++;
+        
+        if (score > best_score) {
+            best_score = score;
+            if (best_content.title) free(best_content.title);
+            if (best_content.context) free(best_content.context);
+            if (best_content.code) free(best_content.code);
+            best_content = content;
+        } else {
+            if (content.title) free(content.title);
+            if (content.context) free(content.context);
+            if (content.code) free(content.code);
+        }
     }
-
-    return strdup("Désolé, je n'ai pas trouvé de code pertinent dans la documentation pour répondre à votre question.");
+    
+    char* response = format_response(best_content);
+    if (best_content.title) free(best_content.title);
+    if (best_content.context) free(best_content.context);
+    if (best_content.code) free(best_content.code);
+    return response;
 }
 
 static size_t WriteMemoryCallback(void *contents, size_t size, size_t nmemb, void *userp) {
@@ -283,13 +393,12 @@ char* chat_with_gpt(const char* input) {
         snprintf(auth_header, sizeof(auth_header), "Authorization: Bearer %s", get_api_key());
         headers = curl_slist_append(headers, auth_header);
 
-        // Échapper les caractères spéciaux dans l'input
         char* escaped_input = curl_easy_escape(curl, input, 0);
         
-        char request_body[2048];  // Augmenter la taille du buffer
+        char request_body[2048];
         snprintf(request_body, sizeof(request_body),
-                 "{\"model\": \"gpt-3.5-turbo\", \"messages\": [{\"role\": \"user\", \"content\": \"%s\"}]}",
-                 escaped_input);
+            "{\"model\": \"gpt-3.5-turbo\", \"messages\": [{\"role\": \"user\", \"content\": \"%s\"}]}",
+            escaped_input);
         
         curl_free(escaped_input);
 
@@ -298,8 +407,6 @@ char* chat_with_gpt(const char* input) {
         curl_easy_setopt(curl, CURLOPT_POSTFIELDS, request_body);
         curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteMemoryCallback);
         curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&chunk);
-
-        // Ajouter ces options pour le débogage
         curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
         curl_easy_setopt(curl, CURLOPT_DEBUGFUNCTION, my_trace);
 
@@ -413,12 +520,6 @@ static int my_trace(CURL *handle, curl_infotype type, char *data, size_t size, v
 
     fprintf(stderr, "%s, %lu bytes (0x%lx)\n", text, (unsigned long)size, (unsigned long)size);
     return 0;
-}
-
-void to_lowercase(char *str) {
-    for (int i = 0; str[i]; i++) {
-        str[i] = tolower(str[i]);
-    }
 }
 
 char* search_in_markdown_with_similarity(const char* content, const char* query) {
