@@ -2,3 +2,4 @@
 .env
 
 includes/docs/
+history/*.json
